@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive US Political Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+            color: #e1e8ed;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(15, 20, 25, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .nav-btn {
+            padding: 0.6rem 1.2rem;
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.3);
+            color: #4a9eff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .nav-btn:hover {
+            background: rgba(74, 158, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.2);
+        }
+
+        .nav-btn.active {
+            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .main-container {
+            display: flex;
+            margin-top: 120px;
+            padding: 2rem;
+            gap: 2rem;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .map-container {
+            flex: 1;
+            background: rgba(26, 35, 50, 0.5);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            min-height: 600px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 600px;
+            cursor: grab;
+        }
+
+        #map.grabbing {
+            cursor: grabbing;
+        }
+
+        .info-panel {
+            width: 380px;
+            background: rgba(26, 35, 50, 0.5);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        .info-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .info-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .info-panel::-webkit-scrollbar-thumb {
+            background: rgba(74, 158, 255, 0.5);
+            border-radius: 4px;
+        }
+
+        .info-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .info-section:last-child {
+            border-bottom: none;
+        }
+
+        .info-section h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #4a9eff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-section h3 {
+            font-size: 1rem;
+            margin: 1rem 0 0.5rem;
+            color: #00d4ff;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .info-item .label {
+            color: #8899a6;
+        }
+
+        .info-item .value {
+            color: #e1e8ed;
+            font-weight: 500;
+        }
+
+        .representative-card {
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .representative-card:hover {
+            background: rgba(74, 158, 255, 0.15);
+            transform: translateX(5px);
+        }
+
+        .rep-photo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(74, 158, 255, 0.5);
+            flex-shrink: 0;
+            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
+        }
+
+        .rep-info {
+            flex: 1;
+        }
+
+        .rep-name {
+            font-weight: 600;
+            color: #4a9eff;
+            margin-bottom: 0.5rem;
+        }
+
+        .rep-party {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .rep-party.democrat {
+            background: rgba(0, 123, 255, 0.2);
+            color: #4dabf7;
+        }
+
+        .rep-party.republican {
+            background: rgba(255, 59, 48, 0.2);
+            color: #ff6b6b;
+        }
+
+        .demographic-bar {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            height: 24px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .demographic-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(15, 20, 25, 0.95);
+            border: 1px solid rgba(74, 158, 255, 0.5);
+            border-radius: 8px;
+            padding: 0.75rem;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .breadcrumb {
+            font-size: 0.9rem;
+            color: #8899a6;
+            margin-bottom: 1rem;
+        }
+
+        .breadcrumb span {
+            color: #4a9eff;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .breadcrumb span:hover {
+            color: #00d4ff;
+        }
+
+        .state-path, .county-path {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 0.5;
+            fill: rgba(74, 158, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .state-path:hover, .county-path:hover {
+            fill: rgba(74, 158, 255, 0.3);
+            stroke: rgba(255, 255, 255, 0.5);
+            stroke-width: 1;
+        }
+
+        .state-path.selected, .county-path.selected {
+            fill: rgba(0, 212, 255, 0.5) !important;
+            stroke: #00d4ff !important;
+            stroke-width: 3 !important;
+        }
+
+        .county-borders {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 0.25;
+            pointer-events: none;
+        }
+
+        .rep-marker {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .rep-marker:hover {
+            transform: scale(1.2);
+        }
+
+        .rep-marker image {
+            border-radius: 50%;
+            stroke: #4a9eff;
+            stroke-width: 2;
+        }
+
+        .rep-marker-label {
+            fill: white;
+            font-size: 10px;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            color: #4a9eff;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 3px solid transparent;
+            border-top-color: #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                flex-direction: column;
+            }
+            .info-panel {
+                width: 100%;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ US Political & Demographics Interactive Map</h1>
+        <div class="nav-buttons">
+            <button class="nav-btn active" onclick="viewNational()">National View</button>
+            <button class="nav-btn" id="stateViewBtn" style="display:none" onclick="viewState()">State View</button>
+            <button class="nav-btn" onclick="resetView()">Reset View</button>
+            <div class="breadcrumb" id="breadcrumb">
+                <span onclick="viewNational()">United States</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="map-container">
+            <div class="loading" id="loading">Loading map data</div>
+            <svg id="map"></svg>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-section">
+                <h2>📍 Selected Region</h2>
+                <div id="regionInfo">
+                    <p style="color: #8899a6;">Click on a state or region to view details</p>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>👥 Representatives</h2>
+                <div id="representativesInfo">
+                    <p style="color: #8899a6;">Representative information will appear here</p>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>📊 Voter Demographics</h2>
+                <div id="demographicsInfo">
+                    <p style="color: #8899a6;">Demographic data will appear here</p>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>🗳️ Election Information</h2>
+                <div id="electionInfo">
+                    <p style="color: #8899a6;">Upcoming elections and voting trends</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <script>
+        // Sample data structure for representatives and demographics
+        const sampleData = {
+            states: {
+                'California': {
+                    senators: [
+                        { 
+                            name: 'Alex Padilla', 
+                            party: 'Democrat', 
+                            nextElection: '2028',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Alex_Padilla_117th_Congress.jpg/220px-Alex_Padilla_117th_Congress.jpg',
+                            office: 'Sacramento'
+                        },
+                        { 
+                            name: 'Laphonza Butler', 
+                            party: 'Democrat', 
+                            nextElection: '2024',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/Laphonza_Butler_official_Senate_photo.jpg/220px-Laphonza_Butler_official_Senate_photo.jpg',
+                            office: 'Los Angeles'
+                        }
+                    ],
+                    governor: { 
+                        name: 'Gavin Newsom', 
+                        party: 'Democrat', 
+                        nextElection: '2026',
+                        photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Gavin_Newsom_official_photo_%28cropped%29.jpg/220px-Gavin_Newsom_official_photo_%28cropped%29.jpg',
+                        office: 'Sacramento'
+                    },
+                    houseReps: [
+                        {
+                            name: 'Nancy Pelosi',
+                            party: 'Democrat',
+                            district: 11,
+                            county: 'San Francisco',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Speaker_Nancy_Pelosi_%28cropped%29.jpg/220px-Speaker_Nancy_Pelosi_%28cropped%29.jpg',
+                            coords: [-122.4194, 37.7749]
+                        },
+                        {
+                            name: 'Kevin McCarthy',
+                            party: 'Republican',
+                            district: 20,
+                            county: 'Kern',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Kevin_McCarthy_official_photo_%28cropped%29.jpg/220px-Kevin_McCarthy_official_photo_%28cropped%29.jpg',
+                            coords: [-119.0187, 35.3733]
+                        },
+                        {
+                            name: 'Adam Schiff',
+                            party: 'Democrat',
+                            district: 30,
+                            county: 'Los Angeles',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/Adam_Schiff_official_photo_%28cropped%29.jpg/220px-Adam_Schiff_official_photo_%28cropped%29.jpg',
+                            coords: [-118.2437, 34.0522]
+                        }
+                    ],
+                    demographics: {
+                        'Registered Democrats': 46.8,
+                        'Registered Republicans': 23.9,
+                        'No Party Preference': 22.9,
+                        'Other': 6.4
+                    },
+                    voterTurnout2024: 68.5,
+                    population: '39.5M'
+                },
+                'Texas': {
+                    senators: [
+                        { 
+                            name: 'John Cornyn', 
+                            party: 'Republican', 
+                            nextElection: '2026',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/John_Cornyn_%28cropped%29.jpg/220px-John_Cornyn_%28cropped%29.jpg',
+                            office: 'Austin'
+                        },
+                        { 
+                            name: 'Ted Cruz', 
+                            party: 'Republican', 
+                            nextElection: '2024',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Ted_Cruz_official_116th_portrait_%28cropped%29.jpg/220px-Ted_Cruz_official_116th_portrait_%28cropped%29.jpg',
+                            office: 'Houston'
+                        }
+                    ],
+                    governor: { 
+                        name: 'Greg Abbott', 
+                        party: 'Republican', 
+                        nextElection: '2026',
+                        photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Greg_Abbott_official_photo_%28cropped%29.jpg/220px-Greg_Abbott_official_photo_%28cropped%29.jpg',
+                        office: 'Austin'
+                    },
+                    houseReps: [
+                        {
+                            name: 'Chip Roy',
+                            party: 'Republican',
+                            district: 21,
+                            county: 'Travis',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Chip_Roy_official_photo_%28cropped%29.jpg/220px-Chip_Roy_official_photo_%28cropped%29.jpg',
+                            coords: [-97.7431, 30.2672]
+                        },
+                        {
+                            name: 'Sheila Jackson Lee',
+                            party: 'Democrat',
+                            district: 18,
+                            county: 'Harris',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/Sheila_Jackson_Lee_%28cropped%29.jpg/220px-Sheila_Jackson_Lee_%28cropped%29.jpg',
+                            coords: [-95.3698, 29.7604]
+                        }
+                    ],
+                    demographics: {
+                        'Registered Republicans': 42.3,
+                        'Registered Democrats': 38.7,
+                        'Independent': 19.0
+                    },
+                    voterTurnout2024: 66.2,
+                    population: '30.0M'
+                },
+                'New York': {
+                    senators: [
+                        { 
+                            name: 'Chuck Schumer', 
+                            party: 'Democrat', 
+                            nextElection: '2028',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Chuck_Schumer_official_photo_%28cropped%29.jpg/220px-Chuck_Schumer_official_photo_%28cropped%29.jpg',
+                            office: 'New York City'
+                        },
+                        { 
+                            name: 'Kirsten Gillibrand', 
+                            party: 'Democrat', 
+                            nextElection: '2024',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Kirsten_Gillibrand_official_photo_%28cropped%29.jpg/220px-Kirsten_Gillibrand_official_photo_%28cropped%29.jpg',
+                            office: 'Albany'
+                        }
+                    ],
+                    governor: { 
+                        name: 'Kathy Hochul', 
+                        party: 'Democrat', 
+                        nextElection: '2026',
+                        photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Kathy_Hochul_%28cropped%29.jpg/220px-Kathy_Hochul_%28cropped%29.jpg',
+                        office: 'Albany'
+                    },
+                    houseReps: [
+                        {
+                            name: 'Alexandria Ocasio-Cortez',
+                            party: 'Democrat',
+                            district: 14,
+                            county: 'Bronx',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Alexandria_Ocasio-Cortez_Official_Portrait_%28cropped%29.jpg/220px-Alexandria_Ocasio-Cortez_Official_Portrait_%28cropped%29.jpg',
+                            coords: [-73.8648, 40.8448]
+                        },
+                        {
+                            name: 'Jerry Nadler',
+                            party: 'Democrat',
+                            district: 12,
+                            county: 'New York',
+                            photo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Jerry_Nadler_116th_Congress_%28cropped%29.jpg/220px-Jerry_Nadler_116th_Congress_%28cropped%29.jpg',
+                            coords: [-73.9712, 40.7831]
+                        }
+                    ],
+                    demographics: {
+                        'Registered Democrats': 49.7,
+                        'Registered Republicans': 22.3,
+                        'Independent': 23.8,
+                        'Other': 4.2
+                    },
+                    voterTurnout2024: 63.8,
+                    population: '19.5M'
+                }
+            }
+        };
+
+        let currentView = 'national';
+        let selectedState = null;
+        let selectedCounty = null;
+        const width = 960;
+        const height = 600;
+
+        const svg = d3.select('#map')
+            .attr('viewBox', `0 0 ${width} ${height}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet');
+
+        const g = svg.append('g');
+        
+        const projection = d3.geoAlbersUsa()
+            .scale(1200)
+            .translate([width / 2, height / 2]);
+
+        const path = d3.geoPath().projection(projection);
+
+        // Zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            });
+
+        svg.call(zoom);
+
+        // Load US topology data
+        Promise.all([
+            d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json')
+        ]).then(([us]) => {
+            document.getElementById('loading').style.display = 'none';
+            
+            // Draw states
+            g.append('g')
+                .attr('class', 'states')
+                .selectAll('path')
+                .data(topojson.feature(us, us.objects.states).features)
+                .enter().append('path')
+                .attr('d', path)
+                .attr('class', 'state-path')
+                .attr('data-id', d => d.id)
+                .on('mouseover', handleStateHover)
+                .on('mouseout', hideTooltip)
+                .on('click', handleStateClick);
+
+            // Draw counties (initially hidden with low opacity)
+            g.append('g')
+                .attr('class', 'counties')
+                .style('opacity', 0)
+                .selectAll('path')
+                .data(topojson.feature(us, us.objects.counties).features)
+                .enter().append('path')
+                .attr('d', path)
+                .attr('class', 'county-path')
+                .attr('data-id', d => d.id)
+                .attr('data-state', d => Math.floor(d.id / 1000))
+                .on('mouseover', handleCountyHover)
+                .on('mouseout', hideTooltip)
+                .on('click', handleCountyClick);
+
+            // Add state borders
+            g.append('path')
+                .attr('class', 'state-borders')
+                .attr('d', path(topojson.mesh(us, us.objects.states, (a, b) => a !== b)))
+                .attr('fill', 'none')
+                .attr('stroke', 'rgba(255, 255, 255, 0.3)')
+                .attr('stroke-width', 1);
+
+            // Add county borders (initially hidden)
+            g.append('path')
+                .attr('class', 'county-borders')
+                .attr('d', path(topojson.mesh(us, us.objects.counties, (a, b) => a !== b)))
+                .style('opacity', 0);
+
+            // Create a group for representative markers
+            g.append('g')
+                .attr('class', 'rep-markers');
+
+        }).catch(error => {
+            console.error('Error loading map data:', error);
+            document.getElementById('loading').innerHTML = 'Error loading map data. Please refresh.';
+        });
+
+        // State ID to name mapping for US Atlas topology
+        function getStateNameById(stateId) {
+            const stateMap = {
+                1: 'Alabama', 2: 'Alaska', 4: 'Arizona', 5: 'Arkansas', 6: 'California',
+                8: 'Colorado', 9: 'Connecticut', 10: 'Delaware', 11: 'District of Columbia',
+                12: 'Florida', 13: 'Georgia', 15: 'Hawaii', 16: 'Idaho', 17: 'Illinois',
+                18: 'Indiana', 19: 'Iowa', 20: 'Kansas', 21: 'Kentucky', 22: 'Louisiana',
+                23: 'Maine', 24: 'Maryland', 25: 'Massachusetts', 26: 'Michigan',
+                27: 'Minnesota', 28: 'Mississippi', 29: 'Missouri', 30: 'Montana',
+                31: 'Nebraska', 32: 'Nevada', 33: 'New Hampshire', 34: 'New Jersey',
+                35: 'New Mexico', 36: 'New York', 37: 'North Carolina', 38: 'North Dakota',
+                39: 'Ohio', 40: 'Oklahoma', 41: 'Oregon', 42: 'Pennsylvania',
+                44: 'Rhode Island', 45: 'South Carolina', 46: 'South Dakota',
+                47: 'Tennessee', 48: 'Texas', 49: 'Utah', 50: 'Vermont', 51: 'Virginia',
+                53: 'Washington', 54: 'West Virginia', 55: 'Wisconsin', 56: 'Wyoming',
+                72: 'Puerto Rico'
+            };
+            return stateMap[stateId] || `State ${stateId}`;
+        }
+
+        function updateCountyInfo(countyId, stateId) {
+            // For now, display basic county information
+            // In a real app, you'd fetch county-specific data
+            document.getElementById('regionInfo').innerHTML = `
+                <div class="info-item">
+                    <span class="label">County ID:</span>
+                    <span class="value">${countyId}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">State ID:</span>
+                    <span class="value">${stateId}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Level:</span>
+                    <span class="value">County</span>
+                </div>
+            `;
+            
+            document.getElementById('representativesInfo').innerHTML = '<p style="color: #8899a6;">County-level representative data not available</p>';
+            document.getElementById('demographicsInfo').innerHTML = '<p style="color: #8899a6;">County-level demographic data not available</p>';
+            document.getElementById('electionInfo').innerHTML = '<p style="color: #8899a6;">County-level election data not available</p>';
+        }
+
+        function handleStateHover(event, d) {
+            const stateName = getStateNameById(d.id);
+            const tooltip = document.getElementById('tooltip');
+            const data = sampleData.states[stateName];
+            
+            tooltip.innerHTML = `
+                <strong>${stateName}</strong><br>
+                ${data ? `Population: ${data.population}<br>Click for details` : 'Click for details'}
+            `;
+            
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 30) + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function handleCountyHover(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `County ID: ${d.id}<br>Click for county details`;
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 30) + 'px';
+            tooltip.classList.add('visible');
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('visible');
+        }
+
+        function handleCountyClick(event, d) {
+            const countyId = d.id;
+            const stateId = Math.floor(countyId / 1000);
+            selectedCounty = countyId;
+            
+            // Update selected county visual
+            d3.selectAll('.county-path').classed('selected', false);
+            d3.select(event.target).classed('selected', true);
+            
+            // Update info panel with county information
+            updateCountyInfo(countyId, stateId);
+            
+            // Prevent event bubbling to state click
+            event.stopPropagation();
+        }
+
+        function handleStateClick(event, d) {
+            console.log('=== STATE CLICK HANDLER CALLED ===');
+            console.log('State clicked:', d.id, getStateNameById(d.id));
+            // The US Atlas topology doesn't include state names in properties
+            // We need to map state IDs to names
+            const stateId = d.id;
+            const stateName = getStateNameById(stateId);
+            selectedState = stateName;
+            
+            // Update selected state visual
+            d3.selectAll('.state-path').classed('selected', false);
+            d3.select(event.target).classed('selected', true);
+            
+            // Show counties for this state
+            console.log('Showing counties for state:', stateName);
+            d3.select('.counties')
+                .transition()
+                .duration(750)
+                .style('opacity', 1);
+            
+            d3.select('.county-borders')
+                .transition()
+                .duration(750)
+                .style('opacity', 1);
+            
+            // Hide counties from other states
+            d3.selectAll('.county-path')
+                .style('display', function(county) {
+                    return Math.floor(county.id / 1000) === parseInt(stateId) ? null : 'none';
+                });
+            
+            // Zoom to state
+            console.log('Zooming to state:', stateName);
+            const bounds = path.bounds(d);
+            const dx = bounds[1][0] - bounds[0][0];
+            const dy = bounds[1][1] - bounds[0][1];
+            const x = (bounds[0][0] + bounds[1][0]) / 2;
+            const y = (bounds[0][1] + bounds[1][1]) / 2;
+            const scale = Math.max(1, Math.min(8, 0.9 / Math.max(dx / width, dy / height)));
+            const translate = [width / 2 - scale * x, height / 2 - scale * y];
+            console.log('Zoom params - scale:', scale, 'translate:', translate);
+
+            svg.transition()
+                .duration(750)
+                .call(
+                    zoom.transform,
+                    d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+                );
+
+            // Add representative markers on the map
+            addRepresentativeMarkers(stateName);
+
+            // Update UI
+            updateInfoPanel(stateName);
+            updateBreadcrumb(stateName);
+            document.getElementById('stateViewBtn').style.display = 'inline-block';
+        }
+
+        function addRepresentativeMarkers(stateName) {
+            const data = sampleData.states[stateName];
+            if (!data || !data.houseReps) return;
+
+            const markersGroup = d3.select('.rep-markers');
+            
+            // Clear existing markers
+            markersGroup.selectAll('*').remove();
+
+            // Add markers for each House Representative
+            data.houseReps.forEach(rep => {
+                if (rep.coords) {
+                    const [x, y] = projection(rep.coords);
+                    if (x && y) {
+                        const marker = markersGroup.append('g')
+                            .attr('class', 'rep-marker')
+                            .attr('transform', `translate(${x}, ${y})`);
+
+                        // Add circle background
+                        marker.append('circle')
+                            .attr('r', 20)
+                            .attr('fill', rep.party === 'Democrat' ? '#4dabf7' : '#ff6b6b')
+                            .attr('fill-opacity', 0.8)
+                            .attr('stroke', 'white')
+                            .attr('stroke-width', 2);
+
+                        // Add photo
+                        marker.append('image')
+                            .attr('xlink:href', rep.photo)
+                            .attr('x', -15)
+                            .attr('y', -15)
+                            .attr('width', 30)
+                            .attr('height', 30)
+                            .attr('clip-path', 'circle(15px at center)')
+                            .on('error', function() {
+                                // Fallback to initials if image fails
+                                d3.select(this).remove();
+                                const initials = rep.name.split(' ').map(n => n[0]).join('');
+                                marker.append('text')
+                                    .attr('class', 'rep-marker-label')
+                                    .attr('dy', 5)
+                                    .text(initials);
+                            });
+
+                        // Add tooltip interaction
+                        marker.on('mouseover', function(event) {
+                            const tooltip = document.getElementById('tooltip');
+                            tooltip.innerHTML = `
+                                <strong>${rep.name}</strong><br>
+                                ${rep.party} - District ${rep.district}<br>
+                                ${rep.county} County
+                            `;
+                            tooltip.style.left = (event.pageX + 10) + 'px';
+                            tooltip.style.top = (event.pageY - 30) + 'px';
+                            tooltip.classList.add('visible');
+                        })
+                        .on('mouseout', hideTooltip)
+                        .on('click', function() {
+                            // Highlight this representative in the info panel
+                            const cards = document.querySelectorAll('.representative-card');
+                            cards.forEach(card => {
+                                if (card.textContent.includes(rep.name)) {
+                                    card.scrollIntoView({ behavior: 'smooth' });
+                                    card.style.background = 'rgba(74, 158, 255, 0.3)';
+                                    setTimeout(() => {
+                                        card.style.background = '';
+                                    }, 2000);
+                                }
+                            });
+                        });
+                    }
+                }
+            });
+        }
+
+        function updateInfoPanel(stateName) {
+            const data = sampleData.states[stateName] || generatePlaceholderData(stateName);
+            
+            // Update region info
+            document.getElementById('regionInfo').innerHTML = `
+                <div class="info-item">
+                    <span class="label">State:</span>
+                    <span class="value">${stateName}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Population:</span>
+                    <span class="value">${data.population || 'N/A'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">2024 Voter Turnout:</span>
+                    <span class="value">${data.voterTurnout2024 ? data.voterTurnout2024 + '%' : 'N/A'}</span>
+                </div>
+            `;
+
+            // Update representatives
+            let repsHTML = '';
+            
+            if (data.senators) {
+                repsHTML += '<h3>U.S. Senators</h3>';
+                data.senators.forEach(senator => {
+                    const fallbackSVG = getSVGFallback(senator.name);
+                    repsHTML += `
+                        <div class="representative-card">
+                            <img src="${senator.photo || fallbackSVG}" 
+                                 alt="${senator.name}" 
+                                 class="rep-photo"
+                                 onerror="this.src='${fallbackSVG}'">
+                            <div class="rep-info">
+                                <div class="rep-name">${senator.name}</div>
+                                <span class="rep-party ${senator.party.toLowerCase()}">${senator.party}</span>
+                                <div style="font-size: 0.85rem; color: #8899a6; margin-top: 0.5rem;">
+                                    Next Election: ${senator.nextElection}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            
+            if (data.governor) {
+                repsHTML += '<h3>Governor</h3>';
+                const fallbackSVG = getSVGFallback(data.governor.name);
+                repsHTML += `
+                    <div class="representative-card">
+                        <img src="${data.governor.photo || fallbackSVG}" 
+                             alt="${data.governor.name}" 
+                             class="rep-photo"
+                             onerror="this.src='${fallbackSVG}'">
+                        <div class="rep-info">
+                            <div class="rep-name">${data.governor.name}</div>
+                            <span class="rep-party ${data.governor.party.toLowerCase()}">${data.governor.party}</span>
+                            <div style="font-size: 0.85rem; color: #8899a6; margin-top: 0.5rem;">
+                                Next Election: ${data.governor.nextElection}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.houseReps) {
+                repsHTML += '<h3>U.S. House Representatives</h3>';
+                data.houseReps.forEach(rep => {
+                    const fallbackSVG = getSVGFallback(rep.name);
+                    repsHTML += `
+                        <div class="representative-card">
+                            <img src="${rep.photo || fallbackSVG}" 
+                                 alt="${rep.name}" 
+                                 class="rep-photo"
+                                 onerror="this.src='${fallbackSVG}'">
+                            <div class="rep-info">
+                                <div class="rep-name">${rep.name}</div>
+                                <span class="rep-party ${rep.party.toLowerCase()}">${rep.party}</span>
+                                <div style="font-size: 0.85rem; color: #8899a6; margin-top: 0.5rem;">
+                                    District ${rep.district} • ${rep.county} County
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('representativesInfo').innerHTML = repsHTML || '<p style="color: #8899a6;">Data not available</p>';
+
+            // Update demographics
+            if (data.demographics) {
+                let demoHTML = '';
+                const colors = {
+                    'Democrat': '#4dabf7',
+                    'Republican': '#ff6b6b',
+                    'Independent': '#69db7c',
+                    'No Party Preference': '#ffd43b',
+                    'Other': '#9775fa'
+                };
+                
+                for (const [key, value] of Object.entries(data.demographics)) {
+                    const color = colors[key.split(' ').pop()] || '#4a9eff';
+                    demoHTML += `
+                        <div style="margin: 1rem 0;">
+                            <div class="info-item">
+                                <span class="label">${key}</span>
+                                <span class="value">${value}%</span>
+                            </div>
+                            <div class="demographic-bar">
+                                <div class="demographic-fill" style="width: ${value}%; background: ${color};">
+                                    ${value}%
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('demographicsInfo').innerHTML = demoHTML;
+            }
+
+            // Update election info
+            document.getElementById('electionInfo').innerHTML = `
+                <div class="info-item">
+                    <span class="label">Next Senate Election:</span>
+                    <span class="value">November 2024</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Next Governor Election:</span>
+                    <span class="value">${data.governor ? data.governor.nextElection : 'N/A'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Presidential Primary:</span>
+                    <span class="value">March 2024</span>
+                </div>
+            `;
+        }
+
+        function getSVGFallback(name) {
+            const initials = name.split(' ').map(n => n[0]).join('');
+            return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><rect width="60" height="60" fill="#4a9eff"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="white" font-size="20" font-weight="bold">${initials}</text></svg>`)}`;
+        }
+
+        function generatePlaceholderData(stateName) {
+            return {
+                population: 'Data pending',
+                voterTurnout2024: 65.0,
+                senators: [
+                    { 
+                        name: 'Senator 1', 
+                        party: 'Party TBD', 
+                        nextElection: '2026',
+                        photo: null
+                    },
+                    { 
+                        name: 'Senator 2', 
+                        party: 'Party TBD', 
+                        nextElection: '2028',
+                        photo: null
+                    }
+                ],
+                governor: { 
+                    name: 'Governor', 
+                    party: 'Party TBD', 
+                    nextElection: '2026',
+                    photo: null
+                },
+                houseReps: [
+                    {
+                        name: 'Representative 1',
+                        party: 'Party TBD',
+                        district: 1,
+                        county: 'TBD',
+                        photo: null
+                    }
+                ],
+                demographics: {
+                    'Party A': 45,
+                    'Party B': 40,
+                    'Independent': 15
+                }
+            };
+        }
+
+        function updateBreadcrumb(stateName) {
+            let breadcrumbHTML = '<span onclick="viewNational()">United States</span>';
+            if (stateName) {
+                breadcrumbHTML += ` > ${stateName}`;
+            }
+            document.getElementById('breadcrumb').innerHTML = breadcrumbHTML;
+        }
+
+        function viewNational() {
+            currentView = 'national';
+            selectedState = null;
+            selectedCounty = null;
+            
+            // Reset zoom
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity);
+            
+            // Hide counties and county borders
+            d3.select('.counties')
+                .transition()
+                .duration(750)
+                .style('opacity', 0);
+            
+            d3.select('.county-borders')
+                .transition()
+                .duration(750)
+                .style('opacity', 0);
+            
+            // Clear representative markers
+            d3.select('.rep-markers').selectAll('*').remove();
+            
+            // Reset UI
+            d3.selectAll('.state-path').classed('selected', false);
+            d3.selectAll('.county-path').style('display', null);
+            document.getElementById('stateViewBtn').style.display = 'none';
+            updateBreadcrumb(null);
+            
+            // Reset info panel
+            document.getElementById('regionInfo').innerHTML = '<p style="color: #8899a6;">Click on a state to view details</p>';
+            document.getElementById('representativesInfo').innerHTML = '<p style="color: #8899a6;">Representative information will appear here</p>';
+            document.getElementById('demographicsInfo').innerHTML = '<p style="color: #8899a6;">Demographic data will appear here</p>';
+            document.getElementById('electionInfo').innerHTML = '<p style="color: #8899a6;">Upcoming elections and voting trends</p>';
+            
+            // Update active button
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.nav-btn').classList.add('active');
+        }
+
+        function viewState() {
+            if (selectedState) {
+                currentView = 'state';
+                // This would load county-level data for the selected state
+                // For now, we'll just update the UI to indicate state view
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById('stateViewBtn').classList.add('active');
+            }
+        }
+
+        function resetView() {
+            viewNational();
+        }
+    </script>
+</body>
+</html>

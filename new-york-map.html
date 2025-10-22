@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New York State Political Map</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+            color: #e1e8ed;
+            min-height: 100vh;
+        }
+        .header {
+            background: rgba(15, 20, 25, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #4a9eff 0%, #00d4ff 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-btn {
+            padding: 0.6rem 1.2rem;
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.3);
+            color: #4a9eff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .nav-btn:hover {
+            background: rgba(74, 158, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        .main-container {
+            display: flex;
+            margin-top: 100px;
+            padding: 2rem;
+            gap: 2rem;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .map-container {
+            flex: 1;
+            background: rgba(26, 35, 50, 0.5);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 600px;
+            position: relative;
+        }
+        #map { width: 100%; height: 600px; }
+        .state-path {
+            stroke: rgba(255, 255, 255, 0.4);
+            stroke-width: 2;
+            fill: rgba(74, 158, 255, 0.2);
+            cursor: pointer;
+        }
+        .state-path.selected {
+            fill: rgba(0, 212, 255, 0.5) !important;
+            stroke: #00d4ff !important;
+            stroke-width: 3 !important;
+        }
+        .county-path {
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 0.5;
+            fill: rgba(74, 158, 255, 0.1);
+            cursor: pointer;
+        }
+        .county-path:hover {
+            fill: rgba(74, 158, 255, 0.3);
+            stroke: #fff;
+        }
+        .info-panel {
+            width: 400px;
+            background: rgba(26, 35, 50, 0.5);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: 700px;
+            overflow-y: auto;
+        }
+        .info-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .info-section h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #4a9eff; }
+        .info-item { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.9rem; }
+        .info-item .label { color: #8899a6; }
+        .info-item .value { color: #e1e8ed; font-weight: 500; }
+        .rep-card {
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .rep-name { font-weight: 600; color: #4a9eff; }
+        .rep-party { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .democrat { background: rgba(0, 123, 255, 0.2); color: #4dabf7; }
+        .republican { background: rgba(255, 59, 48, 0.2); color: #ff6b6b; }
+        .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #4a9eff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗽 New York State Political & Demographics Map</h1>
+    </div>
+
+    <div class="main-container">
+        <div class="map-container">
+            <div class="loading" id="loading">Loading map...</div>
+            <svg id="map"></svg>
+        </div>
+        <div class="info-panel" id="infoPanel"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <script>
+        const nyData = {
+            name: 'New York', capital: 'Albany', population: '19,835,913', counties: 62,
+            senators: [
+                { name: 'Chuck Schumer', party: 'Democrat', title: 'Senate Majority Leader', nextElection: '2028', years: '1999-Present' },
+                { name: 'Kirsten Gillibrand', party: 'Democrat', nextElection: '2024', years: '2009-Present' }
+            ],
+            governor: { name: 'Kathy Hochul', party: 'Democrat', nextElection: '2026', years: '2021-Present' },
+            demographics: { 'Democrats': 49.7, 'Republicans': 22.3, 'Independent': 23.8, 'Other': 4.2 }
+        };
+
+        // Detailed county data for major NY counties
+        const countyData = {
+            36061: { name: 'New York (Manhattan)', population: '1,694,251', seat: 'Manhattan', area: '23 sq mi', density: '73,663/sq mi', medianIncome: '$93,651', lean: 'D+71', turnout2020: '76.2%', mayoralControl: 'Democratic', founded: '1683', majorIndustries: 'Finance, Media, Technology', landmarks: 'Times Square, Central Park, Wall Street' },
+            36047: { name: 'Kings (Brooklyn)', population: '2,736,074', seat: 'Brooklyn', area: '70 sq mi', density: '39,087/sq mi', medianIncome: '$63,998', lean: 'D+60', turnout2020: '68.4%', mayoralControl: 'Democratic', founded: '1683', majorIndustries: 'Technology, Manufacturing, Arts', landmarks: 'Brooklyn Bridge, Prospect Park, Coney Island' },
+            36081: { name: 'Queens', population: '2,405,464', seat: 'Jamaica', area: '109 sq mi', density: '22,064/sq mi', medianIncome: '$71,666', lean: 'D+50', turnout2020: '65.7%', mayoralControl: 'Democratic', founded: '1683', majorIndustries: 'Transportation, Healthcare, Retail', landmarks: 'JFK Airport, Flushing Meadows, Citi Field' },
+            36005: { name: 'Bronx', population: '1,472,654', seat: 'Bronx', area: '42 sq mi', density: '35,063/sq mi', medianIncome: '$42,695', lean: 'D+75', turnout2020: '61.3%', mayoralControl: 'Democratic', founded: '1914', majorIndustries: 'Healthcare, Education, Retail', landmarks: 'Yankee Stadium, Bronx Zoo, Botanical Garden' },
+            36085: { name: 'Richmond (Staten Island)', population: '495,747', seat: 'St. George', area: '58 sq mi', density: '8,548/sq mi', medianIncome: '$86,508', lean: 'R+10', turnout2020: '72.8%', mayoralControl: 'Mixed', founded: '1683', majorIndustries: 'Healthcare, Retail, Construction', landmarks: 'Staten Island Ferry, Snug Harbor, Greenbelt' },
+            36001: { name: 'Albany', population: '314,848', seat: 'Albany', area: '523 sq mi', density: '602/sq mi', medianIncome: '$68,305', lean: 'D+25', turnout2020: '69.5%', countyExecutive: 'Democratic', founded: '1683', majorIndustries: 'Government, Healthcare, Education', landmarks: 'State Capitol, Empire State Plaza' },
+            36029: { name: 'Erie (Buffalo)', population: '954,236', seat: 'Buffalo', area: '1,044 sq mi', density: '914/sq mi', medianIncome: '$60,086', lean: 'D+18', turnout2020: '67.3%', countyExecutive: 'Democratic', founded: '1821', majorIndustries: 'Healthcare, Manufacturing, Education', landmarks: 'Niagara Falls, Buffalo Bills Stadium' },
+            36055: { name: 'Monroe (Rochester)', population: '759,443', seat: 'Rochester', area: '659 sq mi', density: '1,152/sq mi', medianIncome: '$63,942', lean: 'D+12', turnout2020: '68.9%', countyExecutive: 'Democratic', founded: '1821', majorIndustries: 'Optics, Education, Healthcare', landmarks: 'High Falls, Strong Museum, Kodak Tower' },
+            36067: { name: 'Onondaga (Syracuse)', population: '476,516', seat: 'Syracuse', area: '780 sq mi', density: '611/sq mi', medianIncome: '$61,094', lean: 'D+10', turnout2020: '66.2%', countyExecutive: 'Republican', founded: '1794', majorIndustries: 'Education, Healthcare, Manufacturing', landmarks: 'Syracuse University, Destiny USA' },
+            36119: { name: 'Westchester', population: '1,004,457', seat: 'White Plains', area: '433 sq mi', density: '2,320/sq mi', medianIncome: '$99,868', lean: 'D+30', turnout2020: '74.5%', countyExecutive: 'Democratic', founded: '1683', majorIndustries: 'Corporate HQ, Healthcare, Education', landmarks: 'Playland, Kensico Dam' },
+            36027: { name: 'Dutchess', population: '295,685', seat: 'Poughkeepsie', area: '796 sq mi', density: '371/sq mi', medianIncome: '$84,553', lean: 'R+3', turnout2020: '71.8%', countyExecutive: 'Republican', founded: '1683', majorIndustries: 'IBM, Agriculture, Tourism', landmarks: 'FDR Home, Culinary Institute' },
+            36071: { name: 'Orange', population: '401,310', seat: 'Goshen', area: '811 sq mi', density: '495/sq mi', medianIncome: '$81,796', lean: 'R+5', turnout2020: '68.4%', countyExecutive: 'Republican', founded: '1683', majorIndustries: 'Agriculture, Manufacturing, Retail', landmarks: 'West Point, Woodbury Commons' },
+            36087: { name: 'Rockland', population: '338,329', seat: 'New City', area: '174 sq mi', density: '1,944/sq mi', medianIncome: '$99,806', lean: 'D+20', turnout2020: '73.2%', countyExecutive: 'Democratic', founded: '1798', majorIndustries: 'Healthcare, Retail, Services', landmarks: 'Bear Mountain, Nyack' },
+            36103: { name: 'Suffolk', population: '1,525,920', seat: 'Riverhead', area: '912 sq mi', density: '1,673/sq mi', medianIncome: '$104,870', lean: 'R+2', turnout2020: '70.5%', countyExecutive: 'Republican', founded: '1683', majorIndustries: 'Healthcare, Education, Tourism', landmarks: 'Hamptons, Fire Island, Montauk' },
+            36059: { name: 'Nassau', population: '1,395,774', seat: 'Mineola', area: '287 sq mi', density: '4,864/sq mi', medianIncome: '$120,036', lean: 'D+8', turnout2020: '75.8%', countyExecutive: 'Republican', founded: '1899', majorIndustries: 'Healthcare, Finance, Retail', landmarks: 'Jones Beach, Nassau Coliseum' }
+        };
+
+        const width = 960, height = 600;
+        const svg = d3.select('#map').attr('viewBox', `0 0 ${width} ${height}`);
+        const g = svg.append('g');
+        const projection = d3.geoAlbersUsa().scale(1200).translate([width / 2, height / 2]);
+        const path = d3.geoPath().projection(projection);
+        const zoom = d3.zoom().scaleExtent([1, 12]).on('zoom', e => g.attr('transform', e.transform));
+        svg.call(zoom);
+
+        d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(us => {
+            document.getElementById('loading').style.display = 'none';
+            
+            const nyStateId = 36;
+            const states = topojson.feature(us, us.objects.states);
+            const nyState = states.features.find(d => d.id === nyStateId);
+            
+            // Draw NY state
+            g.append('path')
+                .datum(nyState)
+                .attr('d', path)
+                .attr('class', 'state-path')
+                .on('click', () => zoomToNY(nyState));
+            
+            // Draw NY counties
+            const counties = topojson.feature(us, us.objects.counties);
+            const nyCounties = counties.features.filter(d => Math.floor(d.id / 1000) === nyStateId);
+            
+            const countyGroup = g.append('g').attr('class', 'counties').style('opacity', 0);
+            countyGroup.selectAll('path')
+                .data(nyCounties)
+                .enter().append('path')
+                .attr('d', path)
+                .attr('class', 'county-path')
+                .on('click', function(e, d) {
+                    console.log('County clicked:', d.id);
+                    d3.selectAll('.county-path').classed('selected', false);
+                    d3.select(this).classed('selected', true);
+                    zoomToCounty(d);
+                    displayCountyInfo(d.id);
+                    e.stopPropagation();
+                });
+            
+            // Auto-zoom to NY
+            setTimeout(() => zoomToNY(nyState), 500);
+            displayInfo();
+        });
+
+        function zoomToNY(nyState) {
+            console.log('Zooming to New York');
+            d3.select('.state-path').classed('selected', true);
+            d3.select('.counties').transition().duration(1000).style('opacity', 1);
+            
+            const bounds = path.bounds(nyState);
+            const dx = bounds[1][0] - bounds[0][0];
+            const dy = bounds[1][1] - bounds[0][1];
+            const x = (bounds[0][0] + bounds[1][0]) / 2;
+            const y = (bounds[0][1] + bounds[1][1]) / 2;
+            const scale = Math.max(1, Math.min(8, 0.9 / Math.max(dx / width, dy / height)));
+            const translate = [width / 2 - scale * x, height / 2 - scale * y];
+            
+            svg.transition().duration(1000).call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+        }
+
+        function zoomToCounty(countyFeature) {
+            console.log('Zooming to county:', countyFeature.id);
+            
+            const bounds = path.bounds(countyFeature);
+            const dx = bounds[1][0] - bounds[0][0];
+            const dy = bounds[1][1] - bounds[0][1];
+            const x = (bounds[0][0] + bounds[1][0]) / 2;
+            const y = (bounds[0][1] + bounds[1][1]) / 2;
+            const scale = Math.max(1, Math.min(12, 0.9 / Math.max(dx / width, dy / height)));
+            const translate = [width / 2 - scale * x, height / 2 - scale * y];
+            
+            console.log('County zoom params:', { scale, translate });
+            
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+        }
+
+        function displayCountyInfo(countyId) {
+            const county = countyData[countyId];
+            
+            if (!county) {
+                document.getElementById('infoPanel').innerHTML = `
+                    <div class="info-section">
+                        <h2>📍 County ${countyId}</h2>
+                        <p style="color: #8899a6;">Detailed data not available for this county.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="info-section">
+                    <h2>📍 ${county.name} County</h2>
+                    <div class="info-item"><span class="label">County Seat:</span><span class="value">${county.seat}</span></div>
+                    <div class="info-item"><span class="label">Population:</span><span class="value">${county.population}</span></div>
+                    <div class="info-item"><span class="label">Area:</span><span class="value">${county.area}</span></div>
+                    <div class="info-item"><span class="label">Density:</span><span class="value">${county.density}</span></div>
+                    <div class="info-item"><span class="label">Founded:</span><span class="value">${county.founded}</span></div>
+                </div>
+
+                <div class="info-section">
+                    <h2>📊 Political Profile</h2>
+                    <div class="info-item"><span class="label">Political Lean:</span><span class="value">${county.lean}</span></div>
+                    <div class="info-item"><span class="label">2020 Turnout:</span><span class="value">${county.turnout2020}</span></div>
+                    <div class="info-item"><span class="label">Leadership:</span><span class="value">${county.countyExecutive || county.mayoralControl}</span></div>
+                </div>
+
+                <div class="info-section">
+                    <h2>💰 Economic Data</h2>
+                    <div class="info-item"><span class="label">Median Income:</span><span class="value">${county.medianIncome}</span></div>
+                    <div class="info-item"><span class="label">Major Industries:</span><span class="value" style="text-align: right;">${county.majorIndustries}</span></div>
+                </div>
+
+                <div class="info-section">
+                    <h2>🏛️ Notable Landmarks</h2>
+                    <p style="color: #e1e8ed; line-height: 1.6;">${county.landmarks}</p>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <button class="nav-btn" onclick="location.reload()">← Back to State View</button>
+                </div>
+            `;
+            
+            document.getElementById('infoPanel').innerHTML = html;
+        }
+
+        function displayInfo() {
+            let html = `
+                <div class="info-section">
+                    <h2>📍 New York State</h2>
+                    <div class="info-item"><span class="label">Capital:</span><span class="value">${nyData.capital}</span></div>
+                    <div class="info-item"><span class="label">Population:</span><span class="value">${nyData.population}</span></div>
+                    <div class="info-item"><span class="label">Counties:</span><span class="value">${nyData.counties}</span></div>
+                </div>
+                <div class="info-section">
+                    <h2>👥 U.S. Senators</h2>
+            `;
+            
+            nyData.senators.forEach(s => {
+                html += `
+                    <div class="rep-card">
+                        <div class="rep-name">${s.name}</div>
+                        ${s.title ? `<div style="font-size: 0.8rem; color: #00d4ff;">${s.title}</div>` : ''}
+                        <span class="rep-party ${s.party.toLowerCase()}">${s.party}</span>
+                        <div style="font-size: 0.85rem; color: #8899a6; margin-top: 0.5rem;">
+                            In office: ${s.years}<br>Next election: ${s.nextElection}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div><div class="info-section">
+                    <h2>🏛️ Governor</h2>
+                    <div class="rep-card">
+                        <div class="rep-name">${nyData.governor.name}</div>
+                        <span class="rep-party ${nyData.governor.party.toLowerCase()}">${nyData.governor.party}</span>
+                        <div style="font-size: 0.85rem; color: #8899a6; margin-top: 0.5rem;">
+                            In office: ${nyData.governor.years}<br>Next election: ${nyData.governor.nextElection}
+                        </div>
+                    </div>
+                </div>
+                <div class="info-section">
+                    <h2>📊 Voter Registration</h2>
+            `;
+            
+            Object.entries(nyData.demographics).forEach(([party, percent]) => {
+                const colors = { 'Democrats': '#4dabf7', 'Republicans': '#ff6b6b', 'Independent': '#69db7c', 'Other': '#9775fa' };
+                html += `
+                    <div class="info-item"><span class="label">${party}:</span><span class="value">${percent}%</span></div>
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 8px; height: 20px; margin: 0.5rem 0;">
+                        <div style="width: ${percent}%; height: 100%; background: ${colors[party]}; border-radius: 8px;"></div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('infoPanel').innerHTML = html;
+        }
+    </script>
+</body>
+</html>
