@@ -3,27 +3,22 @@ import * as d3 from 'd3';
 import { feature } from 'topojson-client';
 import { useStore } from '@/store/useStore';
 import { Representative } from '@/types';
-import { staticDataLoader } from '@/utils/staticDataLoader';
+import { realCongressAPI } from '@/utils/realCongressApi';
 import { motion } from 'framer-motion';
 
 export const Map: React.FC = () => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [realData, setRealData] = useState(new globalThis.Map<string, Representative[]>());
+  const [realData, setRealData] = useState(new Map<string, Representative[]>());
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [dbAvailable, setDbAvailable] = useState<boolean | null>(null);
-  const { map, timeline } = useStore();
-
-  // Check database availability on mount
-  useEffect(() => {
-    staticDataLoader.isAvailable().then(setDbAvailable);
-  }, []);
+  const { map, timeline, setSelectedRepresentative } = useStore();
+  const hasAPIKey = realCongressAPI.hasAPIKey();
 
   // Load real data when year changes
   useEffect(() => {
-    if (!isLoaded || dbAvailable === false) return;
+    if (!isLoaded || !hasAPIKey) return;
     loadRealData(timeline.currentYear);
-  }, [timeline.currentYear, isLoaded, dbAvailable]);
+  }, [timeline.currentYear, isLoaded, hasAPIKey]);
 
   // Update colors when data or settings change
   useEffect(() => {
@@ -137,30 +132,36 @@ export const Map: React.FC = () => {
       setIsLoaded(true);
       console.log('✅ Map fully loaded');
       
-      // Load initial data
-      loadRealData(timeline.currentYear);
+      // Load initial data if API key available
+      if (hasAPIKey) {
+        loadRealData(timeline.currentYear);
+      }
     } catch (error) {
       console.error('❌ Error loading map:', error);
     }
   };
 
   const loadRealData = async (year: number) => {
+    if (!hasAPIKey) {
+      console.log('⚠️ No API key - cannot load real data');
+      return;
+    }
+    
     setIsLoadingData(true);
     try {
-      console.log(`📊 Loading congressional data for ${year}...`);
-      const data = await staticDataLoader.loadAllRepresentativesForYear(year);
+      console.log(`📊 Loading real congressional data for ${year}...`);
+      const data = await realCongressAPI.loadAllRepresentativesForYear(year);
       setRealData(data);
-      console.log(`✅ Loaded ${data.size} districts`);
+      console.log(`✅ Loaded ${data.size} districts with real representatives`);
       
       // Log sample data
       const firstKey = Array.from(data.keys())[0];
       if (firstKey) {
         const sample = data.get(firstKey);
-        console.log(`📋 Sample: ${firstKey} - ${sample?.[0]?.name}`);
+        console.log(`📋 Sample district ${firstKey}:`, sample?.[0]?.name);
       }
     } catch (error) {
-      console.error('❌ Error loading data:', error);
-      setDbAvailable(false);
+      console.error('❌ Error loading real data:', error);
     } finally {
       setIsLoadingData(false);
     }
@@ -202,26 +203,26 @@ export const Map: React.FC = () => {
         </motion.div>
       )}
       
-      {dbAvailable === false && (
+      {!hasAPIKey && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-red-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-lg shadow-lg border border-red-600 z-50 max-w-md text-center"
         >
-          <div className="font-semibold mb-1">⚠️ DATABASE NOT FOUND</div>
+          <div className="font-semibold mb-1">⚠️ NO API KEY</div>
           <div className="text-sm">
-            Run: npm run build-db test
+            Add VITE_CONGRESS_API_KEY to your .env file
           </div>
         </motion.div>
       )}
       
-      {dbAvailable === true && realData.size > 0 && (
+      {hasAPIKey && realData.size > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-emerald-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-lg shadow-lg border border-emerald-600 z-50 text-center"
         >
-          <div className="font-semibold">✅ Data Loaded</div>
+          <div className="font-semibold">✅ Real Data Loaded</div>
           <div className="text-sm">{realData.size} districts • {timeline.currentYear}</div>
         </motion.div>
       )}

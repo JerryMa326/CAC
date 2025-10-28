@@ -3,24 +3,20 @@ import { Map } from './components/Map';
 import { TimeSlider } from './components/TimeSlider';
 import { RepresentativePanel } from './components/RepresentativePanel';
 import { useEffect, useState } from 'react';
-import { congressDataAPI } from '@/utils/congressDataApi';
+import { realCongressAPI } from '@/utils/realCongressApi';
 
 function App() {
   const [dataReady, setDataReady] = useState(false);
 
   useEffect(() => {
-    // Load congressional data on startup
-    congressDataAPI.init()
-      .then(() => {
-        console.log('✅ Congressional data loaded');
-        console.log('Stats:', congressDataAPI.getStats());
-        setDataReady(true);
-      })
-      .catch(error => {
-        console.error('❌ Failed to load data:', error);
-        // App will use mock data as fallback
-        setDataReady(true);
-      });
+    // Check if API key is available
+    if (realCongressAPI.hasAPIKey()) {
+      console.log('✅ Congress.gov API key found');
+      setDataReady(true);
+    } else {
+      console.log('⚠️ No API key - will use mock data');
+      setDataReady(true);
+    }
   }, []);
 
   if (!dataReady) {

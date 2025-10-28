@@ -1,0 +1,2 @@
+# This directory will contain congress-data.json after running:
+# npm run build-db:test
