@@ -1,17 +1,8 @@
-/**
- * districtService.ts
- * 
- * Fetches congressional district GeoJSON shapes from theunitedstates.io.
- */
-
 import { LegislatorTerm } from './congressionalDataLoader';
 
-// Cache to avoid re-fetching the same district shape
 const shapeCache = new Map<string, any>();
-// Cache state-level 1789-2012 collections per state+era
 const stateEraCollectionCache = new Map<string, any>();
 
-// Map of state abbreviations to 1789-2012 file state names
 const stateNameMap: Record<string, string> = {
   AL: 'Alabama',
   AK: 'Alaska',
@@ -75,10 +66,9 @@ function abbrToStateName(abbr: string): string | null {
   return stateNameMap[abbr as keyof typeof stateNameMap] || null;
 }
 
-// Given an era base year (e.g., 1992), compute the 5-congress block range in the 1789-2012 dataset
 function eraToCongressRange(era: number): { start: number; end: number } | null {
-  if (era > 2002) return null; // 1789-2012 dataset ends at 112th (<= 2012)
-  const start = Math.floor(((era + 1) - 1789) / 2) + 1; // era applies starting the next odd year Congress
+  if (era > 2002) return null;
+  const start = Math.floor(((era + 1) - 1789) / 2) + 1;
   return { start, end: start + 4 };
 }
 
@@ -100,39 +90,56 @@ async function load1789StateCollection(stateAbbr: string, era: number): Promise<
   }
 }
 
-/**
- * Determines the correct district "era" year for the shape API.
- * District boundaries change after each census.
- * This function maps a given year to the year the districts were defined.
- */
+function calculateBoundingBox(geometry: any): { minLon: number; maxLon: number; minLat: number; maxLat: number } | null {
+  if (!geometry || !geometry.coordinates) return null;
+  
+  const coords: number[][] = [];
+  
+  const flatten = (arr: any): void => {
+    if (Array.isArray(arr)) {
+      if (arr.length === 2 && typeof arr[0] === 'number' && typeof arr[1] === 'number') {
+        coords.push(arr);
+      } else {
+        arr.forEach(flatten);
+      }
+    }
+  };
+  
+  flatten(geometry.coordinates);
+  
+  if (coords.length === 0) return null;
+  
+  let minLon = Infinity, maxLon = -Infinity;
+  let minLat = Infinity, maxLat = -Infinity;
+  
+  for (const [lon, lat] of coords) {
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+  }
+  
+  return { minLon, maxLon, minLat, maxLat };
+}
+
 function getDistrictEra(year: number): number {
-  // Use 2022 boundaries for 2023+ (post-2020 census, new seats like MT-2, OR-6, TX-38, NC-14, CO-8, FL-28)
   if (year >= 2023) return 2022;
-  // Use 2012 boundaries for 2013-2022 (post-2010 census)
   if (year >= 2013) return 2012;
   if (year >= 2003) return 2002;
   if (year >= 1993) return 1992;
   if (year >= 1983) return 1982;
   if (year >= 1973) return 1972;
   if (year >= 1963) return 1962;
-  // Before this, it's more complex. For now, we'll use a default.
   return 1962; 
 }
 
-/**
- * Fetches the GeoJSON shape for a single congressional district.
- */
 async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): Promise<any | null> {
-  // Skip senators; map displays House districts only
   if (term.chamber === 'Senate') return null;
   const era = getDistrictEra(selectedYear);
-  const districtId = term.chamber === 'House' ? term.district : 0; // House only; treat 0/undefined as at-large
+  const districtId = term.chamber === 'House' ? term.district : 0;
   if (term.chamber === 'House' && (districtId === undefined || districtId === null)) {
-    console.warn(`⚠️ Missing district for ${term.state} (House) - skipping`);
     return null;
   }
-
-  // Try state-level 1789-2012 dataset first for eras <= 2002
   if (era <= 2002) {
     const stateColl = await load1789StateCollection(term.state, era);
     if (stateColl && Array.isArray(stateColl.features)) {
@@ -159,11 +166,10 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
       }
     }
   }
+
   const candidates = (!districtId || districtId === 0)
     ? [ `${term.state}-AL`, `${term.state}-0` ]
     : [ `${term.state}-${districtId}` ];
-
-  // If any candidate is already cached for this era, return immediately
   for (const code of candidates) {
     const cacheKey = `${era}-${code}`;
     if (shapeCache.has(cacheKey)) {
@@ -189,8 +195,6 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
     let usedCode: string | null = null;
     let usedEra: number | null = null;
     let geojson: any | null = null;
-
-    // Try each candidate in the primary era
     for (const code of candidates) {
       try {
         const res = await fetch(`/districts/cds/${era}/${code}/shape.geojson`);
@@ -203,7 +207,6 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
       } catch (_e) {}
     }
 
-    // If still not found, try earlier eras for each candidate
     if (!geojson) {
       const fallbackEras = [2012, 2002, 1992, 1982, 1972, 1962].filter(e => e !== era);
       outer: for (const fe of fallbackEras) {
@@ -221,41 +224,50 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
       }
     }
 
-    if (!geojson || !usedCode || !usedEra) {
-      // Try state-level fallback only for at-large (entire state equals district)
-      const isAtLarge = (!districtId || districtId === 0);
-      if (isAtLarge) {
+    if (!geojson && era >= 2022 && districtId && districtId > 1) {
+      const fallbackCandidates = [`${term.state}-1`, `${term.state}-AL`, `${term.state}-0`];
+      for (const fallbackCode of fallbackCandidates) {
         try {
-          const stateRes = await fetch(`/districts/${term.state}/shape.geojson`);
-          if (stateRes.ok) {
-            const stateGeo = await stateRes.json();
-            const stateGeom = stateGeo?.type === 'Feature' ? stateGeo.geometry : stateGeo?.geometry || stateGeo;
-            if (stateGeom) {
-              const used = `${term.state}-0`;
-              shapeCache.set(`${era}-${used}`, stateGeom);
-              return {
-                type: 'Feature',
-                geometry: stateGeom,
-                properties: {
-                  __key: used,
-                  __party: term.party,
-                  __state: term.state,
-                  __district: 'AL',
-                  __bioguide: term.bioguide,
-                  __name: term.fullName,
-                  __wikipedia: term.wikipedia,
-                  __era: era,
-                },
-              } as any;
-            }
+          const res = await fetch(`/districts/cds/2012/${fallbackCode}/shape.geojson`);
+          if (res.ok) {
+            geojson = await res.json();
+            usedCode = fallbackCode;
+            usedEra = 2012;
+            break;
           }
-        } catch {}
+        } catch (_e) {}
       }
-      console.warn(`⚠️ No shape found for ${candidates.join(' or ')} in ${era}`);
+    }
+
+    if (!geojson || !usedCode || !usedEra) {
+      try {
+        const stateRes = await fetch(`/districts/states/${term.state}/shape.geojson`);
+        if (stateRes.ok) {
+          const stateGeo = await stateRes.json();
+          const stateGeom = stateGeo?.type === 'Feature' ? stateGeo.geometry : stateGeo?.geometry || stateGeo;
+          if (stateGeom) {
+            const used = candidates[0];
+            shapeCache.set(`${era}-${used}`, stateGeom);
+            return {
+              type: 'Feature',
+              geometry: stateGeom,
+              properties: {
+                __key: used,
+                __party: term.party,
+                __state: term.state,
+                __district: (!districtId || districtId === 0) ? 'AL' : String(districtId),
+                __bioguide: term.bioguide,
+                __name: term.fullName,
+                __wikipedia: term.wikipedia,
+                __era: era,
+              },
+            } as any;
+          }
+        }
+      } catch {}
       return null;
     }
 
-    // Normalize to geometry and then build a feature with year-specific party
     let geometry: any = null;
     if (geojson.type === 'Feature') {
       geometry = geojson.geometry;
@@ -266,14 +278,45 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
     }
 
     if (!geometry) {
-      console.warn(`⚠️ Invalid geometry for ${usedCode} (${usedEra})`);
       return null;
     }
 
-    // Cache only geometry
+    const bbox = calculateBoundingBox(geometry);
+    if (bbox) {
+      const lonSpan = bbox.maxLon - bbox.minLon;
+      const latSpan = bbox.maxLat - bbox.minLat;
+
+      if (lonSpan > 30 || latSpan > 30) {
+        try {
+          const stateRes = await fetch(`/districts/states/${term.state}/shape.geojson`);
+          if (stateRes.ok) {
+            const stateGeo = await stateRes.json();
+            const stateGeom = stateGeo?.type === 'Feature' ? stateGeo.geometry : stateGeo?.geometry || stateGeo;
+            if (stateGeom) {
+              shapeCache.set(`${usedEra}-${usedCode}`, stateGeom);
+              return {
+                type: 'Feature',
+                geometry: stateGeom,
+                properties: {
+                  __key: usedCode,
+                  __party: term.party,
+                  __state: term.state,
+                  __district: (!districtId || districtId === 0) ? 'AL' : String(districtId),
+                  __bioguide: term.bioguide,
+                  __name: term.fullName,
+                  __wikipedia: term.wikipedia,
+                  __era: usedEra,
+                },
+              } as any;
+            }
+          }
+        } catch {}
+        return null;
+      }
+    }
+
     shapeCache.set(`${usedEra}-${usedCode}`, geometry);
 
-    // Return a fresh feature annotated with current term party
     return {
       type: 'Feature',
       geometry,
@@ -288,20 +331,12 @@ async function fetchDistrictShape(term: LegislatorTerm, selectedYear: number): P
         __era: era,
       },
     } as any;
-  } catch (error) {
-    console.error(`❌ Error fetching shape for ${candidates.join(' or ')}:`, error);
+  } catch {
     return null;
   }
 }
 
-/**
- * Fetches all district shapes for a given list of legislator terms.
- * Returns a FeatureCollection containing all valid shapes found.
- */
 export async function fetchAllDistrictShapesForYear(terms: LegislatorTerm[], selectedYear: number): Promise<any> {
-  console.log(`🗺️ Fetching district shapes for ${terms.length} members...`);
-
-  // Pre-deduplicate by district code for the selected year
   const byDistrict: Map<string, LegislatorTerm> = new Map();
   for (const t of terms) {
     if (t.chamber !== 'House') continue;
@@ -312,9 +347,6 @@ export async function fetchAllDistrictShapesForYear(terms: LegislatorTerm[], sel
   }
 
   const uniqueTerms = Array.from(byDistrict.values());
-  console.log(`📦 Unique districts to load: ${uniqueTerms.length}`);
-
-  // Concurrency-limited fetching to avoid INSUFFICIENT_RESOURCES
   const CONCURRENCY = 16;
   const results: any[] = [];
   for (let i = 0; i < uniqueTerms.length; i += CONCURRENCY) {
@@ -322,8 +354,6 @@ export async function fetchAllDistrictShapesForYear(terms: LegislatorTerm[], sel
     const batchResults = await Promise.all(batch.map(t => fetchDistrictShape(t, selectedYear)));
     for (const r of batchResults) if (r) results.push(r);
   }
-
-  console.log(`✅ Found ${results.length} unique district shapes.`);
 
   return {
     type: 'FeatureCollection',

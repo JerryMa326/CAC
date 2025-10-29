@@ -19,19 +19,46 @@ export const Map: React.FC = () => {
   const termsByKeyRef = useRef<Record<string, LegislatorTerm>>({});
   const loadCounterRef = useRef(0);
 
-  // Load real data when year changes
+  const calculateApproxArea = (geometry: any): number => {
+    if (!geometry || !geometry.coordinates) return 0;
+    
+    const coords: number[][] = [];
+    const flatten = (arr: any): void => {
+      if (Array.isArray(arr)) {
+        if (arr.length === 2 && typeof arr[0] === 'number') {
+          coords.push(arr);
+        } else {
+          arr.forEach(flatten);
+        }
+      }
+    };
+    
+    flatten(geometry.coordinates);
+    if (coords.length === 0) return 0;
+
+    let minLon = Infinity, maxLon = -Infinity;
+    let minLat = Infinity, maxLat = -Infinity;
+    
+    for (const [lon, lat] of coords) {
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+    
+    return (maxLon - minLon) * (maxLat - minLat);
+  };
+
   useEffect(() => {
     if (!isLoaded) return;
     loadRealData(timeline.currentYear);
   }, [timeline.currentYear, isLoaded]);
 
-  // Update colors when data or settings change
   useEffect(() => {
     if (!isLoaded || districtsCount === 0) return;
     updateMapColors();
   }, [districtsCount, map.colorBy, isLoaded]);
 
-  // Initial map setup
   useEffect(() => {
     if (!svgRef.current || initializedRef.current) return;
 
@@ -79,23 +106,14 @@ export const Map: React.FC = () => {
 
   const loadMapBase = async (g: any, path: any, projection: any, width: number, height: number) => {
     try {
-      console.log('🗺️ Loading map geometry...');
-      
       const statesResponse = await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
       if (!statesResponse.ok) throw new Error(`Failed to load states: ${statesResponse.status}`);
       const statesTopology = await statesResponse.json();
       const states: any = feature(statesTopology, statesTopology.objects.states);
 
-      // Fit projection to the states geometry for current viewport
       try {
         projection.fitSize([width, height], states);
-      } catch (_e) {
-        // fallback to default translate if fitSize not available
-      }
-
-      console.log('✅ Map geometry loaded');
-
-      // Draw base states layer (soft fill to avoid "dark spots")
+      } catch (_e) {}
       g.append('g')
         .attr('class', 'states')
         .selectAll('path')
@@ -107,27 +125,19 @@ export const Map: React.FC = () => {
         .attr('stroke', 'rgba(255, 255, 255, 0.18)')
         .attr('stroke-width', 1.5);
 
-      // Prepare districts layer (emptied and redrawn per year)
       g.append('g').attr('class', 'districts');
 
       setIsLoaded(true);
-      console.log('✅ Map fully loaded');
-      
-      // Load initial data
       loadRealData(timeline.currentYear);
-    } catch (error) {
-      console.error('❌ Error loading map:', error);
-    }
+    } catch {}
   };
 
   const loadRealData = async (year: number) => {
     const loadId = ++loadCounterRef.current;
     setIsLoadingData(true);
     try {
-      console.log(`📊 Loading congressional members and districts for ${year}...`);
       const terms: LegislatorTerm[] = await dataLoader.getMembersForYear(year);
-      if (loadId !== loadCounterRef.current) return; // stale
-      // Build lookup for click -> representative
+      if (loadId !== loadCounterRef.current) return;
       const byKey: Record<string, LegislatorTerm> = {};
       for (const t of terms) {
         if (t.chamber !== 'House') continue;
@@ -143,19 +153,23 @@ export const Map: React.FC = () => {
       }
       termsByKeyRef.current = byKey;
       const districts = await fetchAllDistrictShapesForYear(terms, year);
-      if (loadId !== loadCounterRef.current) return; // stale
+      if (loadId !== loadCounterRef.current) return; 
 
       if (!gRef.current || !pathRef.current) return;
       const g = gRef.current;
       const path = pathRef.current;
 
-      // Redraw districts layer
       const layer = g.select('.districts');
       layer.selectAll('*').remove();
+      const sortedFeatures = [...districts.features].sort((a, b) => {
+        const areaA = calculateApproxArea(a.geometry);
+        const areaB = calculateApproxArea(b.geometry);
+        return areaB - areaA; 
+      });
 
       layer
         .selectAll('path')
-        .data(districts.features)
+        .data(sortedFeatures)
         .enter()
         .append('path')
         .attr('d', (d: any) => path(d))
@@ -182,11 +196,9 @@ export const Map: React.FC = () => {
           if (!key) return;
           let term = termsByKeyRef.current[key];
           if (!term) {
-            // Fallback AL <-> 0
             if (key.endsWith('-AL')) term = termsByKeyRef.current[key.replace('-AL', '-0')];
             else if (key.endsWith('-0')) term = termsByKeyRef.current[key.replace('-0', '-AL')];
           }
-          // As a secondary fallback, try to match by state+district in current terms array
           if (!term) {
             const state = d.properties?.__state;
             const dist = d.properties?.__district;
@@ -194,19 +206,14 @@ export const Map: React.FC = () => {
               term = (terms as any[]).find((t: any) => t.state === state && String(t.district ?? 'AL') === String(dist));
             }
           }
-          // If still not found, use feature properties directly to build a minimal rep card
           const name = term?.fullName || d.properties?.__name;
           const partyStr = term?.party || d.properties?.__party || 'Unknown';
           const state = term?.state || d.properties?.__state || '';
           const dist = String(term?.district ?? d.properties?.__district ?? '0');
           if (!name || !state) return;
 
-          console.log('🧭 Clicked district', key, '->', name);
-
-          // Fetch Wikipedia enrichment
           const wiki = await fetchWikipediaData(term?.wikipedia || d.properties?.__wikipedia);
 
-          // Build Representative object for panel
           const rep = {
             id: term?.bioguide || d.properties?.__bioguide || key,
             name,
@@ -226,29 +233,20 @@ export const Map: React.FC = () => {
           setSelectedRepresentative(rep);
         });
 
-      setDistrictsCount(districts.features.length);
-      console.log(`✅ Rendered ${districts.features.length} district shapes`);
-    } catch (error) {
-      console.error('❌ Error loading data:', error);
+      setDistrictsCount(sortedFeatures.length);
+    } catch {
     } finally {
       setIsLoadingData(false);
     }
   };
 
   const updateMapColors = () => {
-    if (!svgRef.current) return;
-    const svg = d3.select(svgRef.current);
-    const year = timeline.currentYear;
-
-    svg.selectAll('.district')
-      .transition()
-      .duration(400)
-      .attr('fill', (_d: any, i: number, nodes: any) => {
-        const datum = (nodes[i] as any).__data__;
-        const party = datum?.properties?.__party;
-        return getPartyColor(party);
-      });
-    console.log(`🎨 Updated map colors for ${year}`);
+    if (!gRef.current) return;
+    const g = gRef.current;
+    const layer = g.select('.districts');
+    layer
+      .selectAll('path')
+      .attr('fill', (d: any) => getPartyColor(d.properties?.__party));
   };
 
   const getPartyColor = (party?: string) => {

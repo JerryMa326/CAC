@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, ExternalLink, MapPin, Calendar, GraduationCap, Users, Sparkles } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,9 +10,34 @@ export const RepresentativePanel: React.FC = () => {
   const [ideology, setIdeology] = useState<IdeologyAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const ideologyCache = useRef<Map<string, IdeologyAnalysis>>(new Map());
+
+  useEffect(() => {
+    if (!rep) {
+      setIdeology(null);
+      return;
+    }
+
+    const cacheKey = `${rep.name}-${rep.startYear}`;
+    const cached = ideologyCache.current.get(cacheKey);
+    if (cached) {
+      setIdeology(cached);
+    } else {
+      setIdeology(null);
+    }
+  }, [rep]);
+
   if (!rep) return null;
 
   const handleAnalyzeIdeology = async () => {
+    const cacheKey = `${rep.name}-${rep.startYear}`;
+
+    const cached = ideologyCache.current.get(cacheKey);
+    if (cached) {
+      setIdeology(cached);
+      return;
+    }
+    
     setIsAnalyzing(true);
     try {
       const result = await analyzeIdeology(
@@ -20,9 +45,11 @@ export const RepresentativePanel: React.FC = () => {
         rep.party,
         rep.bio?.summary
       );
-      setIdeology(result);
-    } catch (error) {
-      console.error('Failed to analyze ideology:', error);
+      if (result) {
+        ideologyCache.current.set(cacheKey, result);
+        setIdeology(result);
+      }
+    } catch {
     } finally {
       setIsAnalyzing(false);
     }

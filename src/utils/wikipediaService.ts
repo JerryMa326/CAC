@@ -1,12 +1,5 @@
-/**
- * wikipediaService.ts
- * 
- * Fetches legislator images and summaries from the Wikipedia API.
- */
-
 const WIKIPEDIA_API_ENDPOINT = 'https://en.wikipedia.org/w/api.php';
 
-// Cache to avoid re-fetching the same Wikipedia data
 const wikiCache = new Map<string, WikipediaData>();
 
 export interface WikipediaData {
@@ -15,12 +8,6 @@ export interface WikipediaData {
   pageUrl: string | null;
 }
 
-/**
- * Fetches a summary and main image for a given Wikipedia page title.
- * 
- * @param pageTitle The exact title of the Wikipedia page (e.g., "Nancy_Pelosi").
- * @returns An object containing the summary, image URL, and page URL.
- */
 export async function fetchWikipediaData(pageTitle: string | undefined): Promise<WikipediaData | null> {
   if (!pageTitle) {
     return null;
@@ -30,18 +17,17 @@ export async function fetchWikipediaData(pageTitle: string | undefined): Promise
     return wikiCache.get(pageTitle)!;
   }
 
-  // We need to make two separate API calls: one for the summary, one for the image.
   const params = {
     action: 'query',
     format: 'json',
     prop: 'extracts|pageimages|info',
-    exintro: 'true', // Get only the intro summary
-    explaintext: 'true', // Get plain text, not HTML
-    piprop: 'original', // Get the original, full-resolution image
-    inprop: 'url', // Get the full URL to the page
-    titles: pageTitle.replace(/ /g, '_'), // Ensure spaces are underscores
-    origin: '*', // Required for CORS
-    redirects: '1', // Automatically follow redirects
+    exintro: 'true',
+    explaintext: 'true',
+    piprop: 'original',
+    inprop: 'url',
+    titles: pageTitle.replace(/ /g, '_'),
+    origin: '*',
+    redirects: '1',
   };
 
   const url = `${WIKIPEDIA_API_ENDPOINT}?${new URLSearchParams(params).toString()}`;

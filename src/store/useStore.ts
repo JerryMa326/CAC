@@ -2,27 +2,23 @@ import { create } from 'zustand';
 import { TimelineState, MapState, FilterState, District, Representative } from '@/types';
 
 interface AppStore {
-  // Timeline state
   timeline: TimelineState;
   setYear: (year: number) => void;
   togglePlay: () => void;
   setPlaySpeed: (speed: number) => void;
-  
-  // Map state
+
   map: MapState;
   setSelectedDistrict: (district: District | null) => void;
   setSelectedRepresentative: (rep: Representative | null) => void;
   setHoveredDistrict: (districtId: string | null) => void;
   toggleBattlegrounds: () => void;
   setColorBy: (colorBy: 'party' | 'margin' | 'turnout') => void;
-  
-  // Filter state
+
   filters: FilterState;
   toggleStance: (stance: string) => void;
   togglePartyFilter: (party: string) => void;
   toggleDebates: () => void;
-  
-  // Loading state
+
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }

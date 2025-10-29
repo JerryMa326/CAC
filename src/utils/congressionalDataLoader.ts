@@ -1,10 +1,3 @@
-/**
- * congressionalDataLoader.ts
- * 
- * Loads and processes legislator data from the static JSON files.
- */
-
-// This defines the shape of a single legislator record from the JSON files
 interface LegislatorRecord {
   id: {
     bioguide: string;
@@ -22,15 +15,14 @@ interface LegislatorRecord {
   };
   terms: {
     type: 'rep' | 'sen';
-    start: string; // YYYY-MM-DD
-    end: string;   // YYYY-MM-DD
+    start: string;
+    end: string;
     state: string;
     district?: number;
     party: string;
   }[];
 }
 
-// This will be our clean, combined representation of a legislator's service term
 export interface LegislatorTerm {
   bioguide: string;
   fullName: string;
@@ -53,8 +45,6 @@ class CongressionalDataLoader {
   private async loadAndProcessData(): Promise<void> {
     if (this.isLoaded) return;
 
-    console.log('📂 Loading and processing legislator data...');
-
     try {
       const [historicalRes, currentRes] = await Promise.all([
         fetch('/data/legislators-historical.json'),
@@ -71,10 +61,7 @@ class CongressionalDataLoader {
       const allLegislators = [...historicalData, ...currentData];
       this.allTerms = this.flattenLegislatorTerms(allLegislators);
       this.isLoaded = true;
-
-      console.log(`✅ Processed ${this.allTerms.length.toLocaleString()} individual terms for ${allLegislators.length.toLocaleString()} legislators.`);
-    } catch (error) {
-      console.error('❌ Error loading legislator data:', error);
+    } catch {
       this.allTerms = [];
     }
   }

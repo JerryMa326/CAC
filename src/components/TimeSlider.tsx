@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Calendar } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { motion } from 'framer-motion';
 
 export const TimeSlider: React.FC = () => {
   const { timeline, setYear, togglePlay, setPlaySpeed } = useStore();
   const [localYear, setLocalYear] = useState(timeline.currentYear);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     setLocalYear(timeline.currentYear);
@@ -48,23 +49,51 @@ export const TimeSlider: React.FC = () => {
     if (year < 2001) return 'Clinton';
     if (year < 2009) return 'George W. Bush';
     if (year < 2017) return 'Obama';
-    if (year < 2021) return 'Trump';
+    if (year < 2021 || year > 2024) return 'Trump';
     return 'Biden';
   };
 
   const majorElections = [1964, 1968, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020, 2024];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className="fixed bottom-6 left-0 right-0 mx-auto w-[95%] max-w-[80rem] bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-2xl border border-slate-600/30 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] z-50"
-    >
-      <div className="px-6 py-5 flex flex-col gap-5">
-        {/* Year Display */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div className="fixed bottom-6 left-0 right-0 mx-auto w-[95%] max-w-[80rem] z-50">
+      {/* Collapsed State - Small Toggle Button */}
+      {isCollapsed && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          onClick={() => setIsCollapsed(false)}
+          className="mx-auto flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-2xl border border-slate-600/30 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:scale-105 transition-all"
+          title="Expand timeline"
+        >
+          <ChevronUp size={18} className="text-emerald-400" />
+          <span className="text-sm font-medium text-emerald-400">{timeline.currentYear}</span>
+          <Calendar size={18} className="text-emerald-400" />
+        </motion.button>
+      )}
+
+      {/* Expanded State - Full Timeline */}
+      {!isCollapsed && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="bg-gradient-to-br from-slate-900/95 via-slate-800/95 to-slate-900/95 backdrop-blur-2xl border border-slate-600/30 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+        >
+          <div className="px-6 py-5 flex flex-col gap-5">
+            {/* Year Display */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setIsCollapsed(true)}
+                className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 border border-slate-600/30 transition-all hover:scale-105 active:scale-95"
+                title="Collapse timeline"
+              >
+                <ChevronDown size={20} className="text-slate-300" />
+              </button>
+
+              <div className="flex items-center gap-3">
             <Calendar className="text-emerald-400" size={32} />
             <div>
               <div className="text-5xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent tracking-tight transition-all duration-300">
@@ -165,19 +194,21 @@ export const TimeSlider: React.FC = () => {
                 );
               })}
           </div>
-        </div>
+          </div>
 
-        {/* Year Labels */}
-        <div className="flex justify-between text-xs text-slate-500 font-medium px-1">
-          <span>{timeline.minYear}</span>
-          <span>1975</span>
-          <span>1985</span>
-          <span>1995</span>
-          <span>2005</span>
-          <span>2015</span>
-          <span>{timeline.maxYear}</span>
-        </div>
-      </div>
-    </motion.div>
+          {/* Year Labels */}
+          <div className="flex justify-between text-xs text-slate-500 font-medium px-1">
+            <span>{timeline.minYear}</span>
+            <span>1975</span>
+            <span>1985</span>
+            <span>1995</span>
+            <span>2005</span>
+            <span>2015</span>
+            <span>{timeline.maxYear}</span>
+          </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
   );
 };

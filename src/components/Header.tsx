@@ -17,7 +17,7 @@ export const Header: React.FC = () => {
               <MapIcon size={22} className="text-white" strokeWidth={2.5} />
             </div>
             <h1 className="text-xl font-semibold text-white tracking-tight">
-              Congressional Atlas
+              Atlas of Independence
             </h1>
           </div>
 
