@@ -30,8 +30,8 @@ interface AppStore {
 export const useStore = create<AppStore>((set) => ({
   timeline: {
     currentYear: 2024,
-    minYear: 1789,
-    maxYear: 2024,
+    minYear: 1964,
+    maxYear: 2025,
     isPlaying: false,
     playSpeed: 1,
   },

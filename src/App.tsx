@@ -3,20 +3,13 @@ import { Map } from './components/Map';
 import { TimeSlider } from './components/TimeSlider';
 import { RepresentativePanel } from './components/RepresentativePanel';
 import { useEffect, useState } from 'react';
-import { realCongressAPI } from '@/utils/realCongressApi';
 
 function App() {
   const [dataReady, setDataReady] = useState(false);
 
   useEffect(() => {
-    // Check if API key is available
-    if (realCongressAPI.hasAPIKey()) {
-      console.log('✅ Congress.gov API key found');
-      setDataReady(true);
-    } else {
-      console.log('⚠️ No API key - will use mock data');
-      setDataReady(true);
-    }
+    // No external API bootstrap required; ready immediately
+    setDataReady(true);
   }, []);
 
   if (!dataReady) {

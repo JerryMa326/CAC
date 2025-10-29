@@ -27,7 +27,10 @@ export const TimeSlider: React.FC = () => {
   const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const year = parseInt(e.target.value);
     setLocalYear(year);
-    setYear(year);
+  };
+
+  const commitYear = () => {
+    setYear(localYear);
   };
 
   const jumpYears = (delta: number) => {
@@ -36,24 +39,20 @@ export const TimeSlider: React.FC = () => {
   };
 
   const getEraName = (year: number): string => {
-    if (year < 1789) return 'Pre-Constitutional Era';
-    if (year < 1828) return 'Early Republic';
-    if (year < 1860) return 'Jacksonian Democracy';
-    if (year < 1877) return 'Civil War & Reconstruction';
-    if (year < 1900) return 'Gilded Age';
-    if (year < 1920) return 'Progressive Era';
-    if (year < 1933) return 'Roaring Twenties';
-    if (year < 1945) return 'New Deal Era';
-    if (year < 1964) return 'Post-War America';
-    if (year < 1980) return 'Civil Rights & Great Society';
-    if (year < 2001) return 'Reagan Revolution';
-    if (year < 2008) return 'Post-9/11 Era';
-    if (year < 2017) return 'Obama Era';
-    if (year < 2021) return 'Trump Era';
-    return 'Modern Era';
+    if (year < 1969) return 'LBJ, Great Society';
+    if (year < 1974) return 'Nixon';
+    if (year < 1977) return 'Ford';
+    if (year < 1981) return 'Carter';
+    if (year < 1989) return 'Reagan, Reagan Revolution';
+    if (year < 1993) return 'George H.W. Bush';
+    if (year < 2001) return 'Clinton';
+    if (year < 2009) return 'George W. Bush';
+    if (year < 2017) return 'Obama';
+    if (year < 2021) return 'Trump';
+    return 'Biden';
   };
 
-  const majorElections = [1789, 1800, 1828, 1860, 1896, 1912, 1932, 1964, 1980, 2000, 2008, 2016, 2020, 2024];
+  const majorElections = [1964, 1968, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020, 2024];
 
   return (
     <motion.div
@@ -134,6 +133,8 @@ export const TimeSlider: React.FC = () => {
             max={timeline.maxYear}
             value={localYear}
             onChange={handleYearChange}
+            onMouseUp={commitYear}
+            onTouchEnd={commitYear}
             className="w-full h-2 rounded-full appearance-none cursor-pointer slider"
             style={{
               background: `linear-gradient(to right, 
@@ -169,10 +170,11 @@ export const TimeSlider: React.FC = () => {
         {/* Year Labels */}
         <div className="flex justify-between text-xs text-slate-500 font-medium px-1">
           <span>{timeline.minYear}</span>
-          <span>1850</span>
-          <span>1900</span>
-          <span>1950</span>
-          <span>2000</span>
+          <span>1975</span>
+          <span>1985</span>
+          <span>1995</span>
+          <span>2005</span>
+          <span>2015</span>
           <span>{timeline.maxYear}</span>
         </div>
       </div>

@@ -1,12 +1,32 @@
-import { X, ExternalLink, MapPin, Calendar, GraduationCap, Users } from 'lucide-react';
+import { useState } from 'react';
+import { X, ExternalLink, MapPin, Calendar, GraduationCap, Users, Sparkles } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { analyzeIdeology, type IdeologyAnalysis } from '@/utils/geminiService';
 
 export const RepresentativePanel: React.FC = () => {
   const { map, setSelectedRepresentative } = useStore();
   const rep = map.selectedRepresentative;
+  const [ideology, setIdeology] = useState<IdeologyAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   if (!rep) return null;
+
+  const handleAnalyzeIdeology = async () => {
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeIdeology(
+        rep.name,
+        rep.party,
+        rep.bio?.summary
+      );
+      setIdeology(result);
+    } catch (error) {
+      console.error('Failed to analyze ideology:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const partyColors = {
     Democrat: 'from-blue-600 via-blue-500 to-cyan-500',
@@ -55,7 +75,7 @@ export const RepresentativePanel: React.FC = () => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5" style={{ scrollBehavior: 'smooth' }}>
           {/* Term Information */}
           <section className="bg-slate-800/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-lg">
             <div className="flex items-center gap-2.5 mb-3">
@@ -74,6 +94,48 @@ export const RepresentativePanel: React.FC = () => {
                 <section className="bg-slate-800/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/50 shadow-lg">
                   <h3 className="text-lg font-bold text-white mb-3">Biography</h3>
                   <p className="text-slate-300 leading-relaxed">{rep.bio.summary}</p>
+                  
+                  {/* Analyze Ideologies Button */}
+                  <button
+                    onClick={handleAnalyzeIdeology}
+                    disabled={isAnalyzing}
+                    className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:from-slate-600 disabled:to-slate-700 rounded-lg transition-all shadow-lg hover:shadow-purple-500/30 text-white font-semibold hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                        <span>Analyzing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        <span>Analyze Ideologies</span>
+                      </>
+                    )}
+                  </button>
+                </section>
+              )}
+
+              {/* Ideology Analysis Results */}
+              {ideology && (
+                <section className="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl p-5 border border-purple-500/50 shadow-lg">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <Sparkles size={20} className="text-purple-400" />
+                    <h3 className="text-lg font-bold text-white">Ideology Analysis</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-purple-300 font-semibold">Economic:</span>{' '}
+                      <span className="text-white">{ideology.economic}</span>
+                    </div>
+                    <div>
+                      <span className="text-purple-300 font-semibold">Social:</span>{' '}
+                      <span className="text-white">{ideology.social}</span>
+                    </div>
+                    <div className="pt-2 border-t border-purple-500/30">
+                      <p className="text-slate-300 leading-relaxed">{ideology.summary}</p>
+                    </div>
+                  </div>
                 </section>
               )}
 
