@@ -6,6 +6,7 @@ import { dataLoader, type LegislatorTerm } from '@/utils/congressionalDataLoader
 import { fetchAllDistrictShapesForYear } from '@/utils/districtService';
 import { fetchWikipediaData } from '@/utils/wikipediaService';
 import { motion } from 'framer-motion';
+import { CongressMajorityPanel } from './congress-majority-panel';
 
 export const Map: React.FC = () => {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -21,7 +22,7 @@ export const Map: React.FC = () => {
 
   const calculateApproxArea = (geometry: any): number => {
     if (!geometry || !geometry.coordinates) return 0;
-    
+
     const coords: number[][] = [];
     const flatten = (arr: any): void => {
       if (Array.isArray(arr)) {
@@ -32,20 +33,20 @@ export const Map: React.FC = () => {
         }
       }
     };
-    
+
     flatten(geometry.coordinates);
     if (coords.length === 0) return 0;
 
     let minLon = Infinity, maxLon = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
-    
+
     for (const [lon, lat] of coords) {
       minLon = Math.min(minLon, lon);
       maxLon = Math.max(maxLon, lon);
       minLat = Math.min(minLat, lat);
       maxLat = Math.max(maxLat, lat);
     }
-    
+
     return (maxLon - minLon) * (maxLat - minLat);
   };
 
@@ -113,7 +114,7 @@ export const Map: React.FC = () => {
 
       try {
         projection.fitSize([width, height], states);
-      } catch (_e) {}
+      } catch (_e) { }
       g.append('g')
         .attr('class', 'states')
         .selectAll('path')
@@ -129,7 +130,7 @@ export const Map: React.FC = () => {
 
       setIsLoaded(true);
       loadRealData(timeline.currentYear);
-    } catch {}
+    } catch { }
   };
 
   const loadRealData = async (year: number) => {
@@ -153,7 +154,7 @@ export const Map: React.FC = () => {
       }
       termsByKeyRef.current = byKey;
       const districts = await fetchAllDistrictShapesForYear(terms, year);
-      if (loadId !== loadCounterRef.current) return; 
+      if (loadId !== loadCounterRef.current) return;
 
       if (!gRef.current || !pathRef.current) return;
       const g = gRef.current;
@@ -164,7 +165,7 @@ export const Map: React.FC = () => {
       const sortedFeatures = [...districts.features].sort((a, b) => {
         const areaA = calculateApproxArea(a.geometry);
         const areaB = calculateApproxArea(b.geometry);
-        return areaB - areaA; 
+        return areaB - areaA;
       });
 
       layer
@@ -178,14 +179,14 @@ export const Map: React.FC = () => {
         .attr('stroke', 'rgba(0, 0, 0, 0.4)')
         .attr('stroke-width', 0.4)
         .style('cursor', 'pointer')
-        .on('mouseover', function(this: SVGPathElement) {
+        .on('mouseover', function (this: SVGPathElement) {
           d3.select(this)
             .attr('stroke', '#ffffff')
             .attr('stroke-width', 1.2)
             .attr('fill-opacity', 0.9)
             .raise();
         })
-        .on('mouseout', function(this: SVGPathElement) {
+        .on('mouseout', function (this: SVGPathElement) {
           d3.select(this)
             .attr('stroke', 'rgba(0, 0, 0, 0.4)')
             .attr('stroke-width', 0.4)
@@ -268,7 +269,7 @@ export const Map: React.FC = () => {
   return (
     <>
       <svg ref={svgRef} className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-950" />
-      
+
       {isLoadingData && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -281,8 +282,9 @@ export const Map: React.FC = () => {
           </div>
         </motion.div>
       )}
-      
+
       {/* Status toasts intentionally removed to keep UI clean */}
+      <CongressMajorityPanel currentYear={timeline.currentYear} />
     </>
   );
 };
